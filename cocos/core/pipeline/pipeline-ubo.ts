@@ -200,6 +200,13 @@ export class PipelineUBO {
                 sv[UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET + 1] = packing;
                 sv[UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET + 2] = shadowInfo.normalBias;
                 sv[UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET + 3] = 0.0;
+
+
+                const N = matShadowViewProj[2][3] / matShadowViewProj[2][2] - 1.0;
+                const F = matShadowViewProj[2][3] / matShadowViewProj[2][2] + 1.0;
+            
+                sv[UBOShadow.NEAR_FAR_CONSTANT] = ((F + N) / (F - N)) + ((-2.0 * F * N) / (F - N));
+
             } else if (mainLight && shadowInfo.type === ShadowType.Planar) {
                 updatePlanarPROJ(shadowInfo, mainLight, sv);
             }

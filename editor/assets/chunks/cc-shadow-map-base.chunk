@@ -40,6 +40,19 @@
     return shadow;
   }
 
+  // Convert clipspace depthbias to a worldspace depthbias
+  float CCConvertClipspaceBiasToWorldspaceBias(float clipspaceDepthBias)
+  {
+  #if 0
+    float N = cc_matLightViewProj[2][3] / cc_matLightViewProj[2][2] - 1.0;
+    float F = cc_matLightViewProj[2][3] / cc_matLightViewProj[2][2] + 1.0;
+
+    return ((F + N) / (F - N)) + ((-2.0 * F * N) / (F - N)) / clipspaceDepthBias;
+  #else
+    return cc_nearFarConstant / clipspaceDepthBias;
+  #endif
+  }
+
   float CCGetShadowFactorSoft (vec4 shadowPos) {
     vec3 clipPos = shadowPos.xyz / shadowPos.w * 0.5 + 0.5;
     if (clipPos.x < 0.0 || clipPos.x > 1.0 ||
@@ -48,7 +61,9 @@
 
     CC_HANDLE_NDC_SAMPLE_FLIP(clipPos.xy);
 
-    float offsetDepth = clipPos.z - cc_shadowWHPBInfo.w;
+    float worldDepthBias = CCConvertClipspaceBiasToWorldspaceBias(cc_shadowWHPBInfo.w);
+
+    float offsetDepth = clipPos.z - worldDepthBias;
     vec2 oneTap = 1.0 / cc_shadowWHPBInfo.xy;
     vec2 clipPos_offset = clipPos.xy + oneTap;
     float block0, block1, block2, block3;

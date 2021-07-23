@@ -246,7 +246,8 @@ export class UBOShadow {
     public static readonly SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET: number = UBOShadow.MAT_LIGHT_VIEW_PROJ_OFFSET + 16;
     public static readonly SHADOW_WIDTH_HEIGHT_PCF_BIAS_INFO_OFFSET: number = UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET + 4;
     public static readonly SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET: number = UBOShadow.SHADOW_WIDTH_HEIGHT_PCF_BIAS_INFO_OFFSET + 4;
-    public static readonly SHADOW_COLOR_OFFSET = UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET + 4;
+    public static readonly NEAR_FAR_CONSTANT = UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET + 4;
+    public static readonly SHADOW_COLOR_OFFSET = UBOShadow.NEAR_FAR_CONSTANT + 1;
     public static readonly COUNT: number = UBOShadow.SHADOW_COLOR_OFFSET + 4;
     public static readonly SIZE = UBOShadow.COUNT * 4;
     public static readonly NAME = 'CCShadow';
@@ -259,6 +260,7 @@ export class UBOShadow {
         new Uniform('cc_shadowNFLSInfo', Type.FLOAT4, 1),
         new Uniform('cc_shadowWHPBInfo', Type.FLOAT4, 1),
         new Uniform('cc_shadowLPNNInfo', Type.FLOAT4, 1),
+        new Uniform('cc_nearFarConstant', Type.FLOAT, 1),
         new Uniform('cc_shadowColor', Type.FLOAT4, 1),
     ], 1);
 }

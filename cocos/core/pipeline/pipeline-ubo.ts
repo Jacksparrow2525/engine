@@ -200,7 +200,6 @@ export class PipelineUBO {
                 sv[UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET + 1] = packing;
                 sv[UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET + 2] = shadowInfo.normalBias;
                 sv[UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET + 3] = 0.0;
-
             } else if (mainLight && shadowInfo.type === ShadowType.Planar) {
                 updatePlanarPROJ(shadowInfo, mainLight, sv);
             }
@@ -220,83 +219,58 @@ export class PipelineUBO {
         let shadowCameraView: Mat4;
         switch (light.type) {
         case LightType.DIRECTIONAL:
-            {
-                // light view
-                (light).update();
-                // light proj
-                if (shadowInfo.autoAdapt) {
-                    const node = (light).node;
-                    if (node) {
-                        shadowCameraView = getShadowWorldMatrix(pipeline, node.getWorldRotation(), (light as any).direction, vec3_center);
-                    }
-                    // if orthoSize is the smallest, auto calculate orthoSize.
-                    const radius = shadowInfo.sphere.radius;
-                    _x = radius * shadowInfo.aspect;
-                    _y = radius;
-
-                    const halfFar = Vec3.distance(shadowInfo.sphere.center, vec3_center);
-                    _far = Math.min(halfFar * Shadows.COEFFICIENT_OF_EXPANSION, Shadows.MAX_FAR);
-                } else {
-                    shadowCameraView = (light as any).node.getWorldMatrix();
-
-                    _x = shadowInfo.orthoSize * shadowInfo.aspect;
-                    _y = shadowInfo.orthoSize;
-
-                    _far = shadowInfo.far;
+            // light view
+            (light).update();
+            // light proj
+            if (shadowInfo.autoAdapt) {
+                const node = (light).node;
+                if (node) {
+                    shadowCameraView = getShadowWorldMatrix(pipeline, node.getWorldRotation(), (light as any).direction, vec3_center);
                 }
+                // if orthoSize is the smallest, auto calculate orthoSize.
+                const radius = shadowInfo.sphere.radius;
+                _x = radius * shadowInfo.aspect;
+                _y = radius;
 
-                Mat4.toArray(sv, shadowCameraView!, UBOShadow.MAT_LIGHT_VIEW_OFFSET);
-                Mat4.invert(matShadowView, shadowCameraView!);
+                const halfFar = Vec3.distance(shadowInfo.sphere.center, vec3_center);
+                _far = Math.min(halfFar * Shadows.COEFFICIENT_OF_EXPANSION, Shadows.MAX_FAR);
+            } else {
+                shadowCameraView = (light as any).node.getWorldMatrix();
 
-                vec4ShadowInfo.set(shadowInfo.near, _far, linear, shadowInfo.selfShadow ? 1.0 : 0.0);
-                Vec4.toArray(sv, vec4ShadowInfo, UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET);
+                _x = shadowInfo.orthoSize * shadowInfo.aspect;
+                _y = shadowInfo.orthoSize;
 
-                vec4ShadowInfo.set(0.0, packing, shadowInfo.normalBias, 0.0);
-                Vec4.toArray(sv, vec4ShadowInfo, UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET);
-
-                const nearC_ortho = shadowInfo.near;
-                const farC_ortho  = _far;
-
-                Mat4.ortho(matShadowViewProj, -_x, _x, -_y, _y, nearC_ortho, farC_ortho,
-                    device.capabilities.clipSpaceMinZ, device.capabilities.clipSpaceSignY);
-
-                // Set near/far constants for world-space depthBias recontruction
-                sv[UBOShadow.NEAR_FAR_CONSTANTS + 0] = (farC_ortho - nearC_ortho);
-                sv[UBOShadow.NEAR_FAR_CONSTANTS + 1] = 0;
-                sv[UBOShadow.NEAR_FAR_CONSTANTS + 2] = nearC_ortho ;
-                sv[UBOShadow.NEAR_FAR_CONSTANTS + 3] = farC_ortho;
+                _far = shadowInfo.far;
             }
+
+            Mat4.toArray(sv, shadowCameraView!, UBOShadow.MAT_LIGHT_VIEW_OFFSET);
+            Mat4.invert(matShadowView, shadowCameraView!);
+
+            vec4ShadowInfo.set(shadowInfo.near, _far, linear, shadowInfo.selfShadow ? 1.0 : 0.0);
+            Vec4.toArray(sv, vec4ShadowInfo, UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET);
+
+            vec4ShadowInfo.set(0.0, packing, shadowInfo.normalBias, 0.0);
+            Vec4.toArray(sv, vec4ShadowInfo, UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET);
+
+            Mat4.ortho(matShadowViewProj, -_x, _x, -_y, _y, shadowInfo.near, _far,
+                device.capabilities.clipSpaceMinZ, device.capabilities.clipSpaceSignY);
             break;
-
-
         case LightType.SPOT:
-            {
-                // light view
-                Mat4.toArray(sv, (light as any).node.getWorldMatrix(), UBOShadow.MAT_LIGHT_VIEW_OFFSET);
-                Mat4.invert(matShadowView, (light as any).node.getWorldMatrix());
+            // light view
+            Mat4.toArray(sv, (light as any).node.getWorldMatrix(), UBOShadow.MAT_LIGHT_VIEW_OFFSET);
+            Mat4.invert(matShadowView, (light as any).node.getWorldMatrix());
 
-                vec4ShadowInfo.set(0.01, (light as SpotLight).range, linear, shadowInfo.selfShadow ? 1.0 : 0.0);
-                Vec4.toArray(sv, vec4ShadowInfo, UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET);
+            vec4ShadowInfo.set(0.01, (light as SpotLight).range, linear, shadowInfo.selfShadow ? 1.0 : 0.0);
+            Vec4.toArray(sv, vec4ShadowInfo, UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET);
 
-                vec4ShadowInfo.set(1.0, packing, shadowInfo.normalBias, 0.0);
-                Vec4.toArray(sv, vec4ShadowInfo, UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET);
+            vec4ShadowInfo.set(1.0, packing, shadowInfo.normalBias, 0.0);
+            Vec4.toArray(sv, vec4ShadowInfo, UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET);
 
-                const nearC_persp = 0.001;
-                const farC_persp  = (light as any).range;
-
-                // light proj
-                Mat4.perspective(matShadowViewProj, (light as any).spotAngle, (light as any).aspect, nearC_persp, farC_persp);
-
-                // Set near/far constants for world-space depthBias recontruction
-                sv[UBOShadow.NEAR_FAR_CONSTANTS + 0] = ((farC_persp + nearC_persp) / (farC_persp - nearC_persp));
-                sv[UBOShadow.NEAR_FAR_CONSTANTS + 1] = ((-2.0 * farC_persp * nearC_persp) / (farC_persp - nearC_persp));
-                sv[UBOShadow.NEAR_FAR_CONSTANTS + 2] = nearC_persp;
-                sv[UBOShadow.NEAR_FAR_CONSTANTS + 3] = farC_persp;
-            }
+            // light proj
+            Mat4.perspective(matShadowViewProj, (light as any).spotAngle, (light as any).aspect, 0.001, (light as any).range);
             break;
         default:
         }
-
         // light viewProj
         Mat4.multiply(matShadowViewProj, matShadowViewProj, matShadowView);
 

@@ -369,13 +369,19 @@ export class RenderAdditiveLightQueue {
                 // light proj
                 Mat4.perspective(_matShadowViewProj, (light as SpotLight).spotAngle, (light as SpotLight).aspect, 0.001, (light as SpotLight).range);
 
+                Mat4.toArray(this._shadowUBO, _matShadowViewProj, UBOShadow.MAT_LIGHT_PROJ_OFFSET);
+                Mat4.toArray(this._shadowUBO, _matShadowViewProj.clone().invert(), UBOShadow.MAT_LIGHT_INV_PROJ_OFFSET);
+
                 // light viewProj
                 Mat4.multiply(_matShadowViewProj, _matShadowViewProj, _matShadowView);
 
                 Mat4.toArray(this._shadowUBO, _matShadowViewProj, UBOShadow.MAT_LIGHT_VIEW_PROJ_OFFSET);
 
-                this._shadowUBO[UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET + 0] = 0.01;
-                this._shadowUBO[UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET + 1] = (light as SpotLight).range;
+                const nearC_persp = 0.001;
+                const farC_persp  = (light as any).range;
+
+                this._shadowUBO[UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET + 0] = nearC_persp;
+                this._shadowUBO[UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET + 1] = farC_persp;
                 this._shadowUBO[UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET + 2] = linear;
                 this._shadowUBO[UBOShadow.SHADOW_NEAR_FAR_LINEAR_SELF_INFO_OFFSET + 3] = shadowInfo.selfShadow ? 1.0 : 0.0;
 
@@ -390,6 +396,12 @@ export class RenderAdditiveLightQueue {
                 this._shadowUBO[UBOShadow.SHADOW_LIGHT_PACKING_NBIAS_NULL_INFO_OFFSET + 3] = 0.0;
 
                 Color.toArray(this._shadowUBO, shadowInfo.shadowColor, UBOShadow.SHADOW_COLOR_OFFSET);
+
+                // Set near/far constants for world-space depthBias recontruction
+                this._shadowUBO[UBOShadow.NEAR_FAR_CONSTANTS + 0] = farC_persp / (farC_persp - nearC_persp);
+                this._shadowUBO[UBOShadow.NEAR_FAR_CONSTANTS + 1] = (farC_persp * nearC_persp) / (nearC_persp - farC_persp);
+                this._shadowUBO[UBOShadow.NEAR_FAR_CONSTANTS + 2] = nearC_persp;
+                this._shadowUBO[UBOShadow.NEAR_FAR_CONSTANTS + 3] = farC_persp;
 
                 // Spot light sampler binding
                 if (shadowFrameBufferMap.has(light)) {

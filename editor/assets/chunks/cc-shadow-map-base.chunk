@@ -20,7 +20,20 @@
     return cc_shadowNFLSInfo.x + (-dist / (cc_shadowNFLSInfo.y - cc_shadowNFLSInfo.x));
   }
 
+  // Returns the new depthBiased shadow position in clip-space
+  // TODO: Find more a shader efficient technique
+  vec4 ApplyShadowDepthBias(vec4 shadowPos, float viewspaceDepthBias)
+  {
+    vec4 viewSpacePos = cc_matLightInvProj * shadowPos;
+    viewSpacePos /= viewSpacePos.w;
+    vec3 viewSpacePosBiased = vec3(viewSpacePos.xy, viewSpacePos.z + viewspaceDepthBias);
+    vec4 clipSpacePosBiased = cc_matLightProj * vec4(viewSpacePosBiased.xyz, 1.0);
+
+    return clipSpacePosBiased;
+  }
+
   float CCGetShadowFactorHard (vec4 shadowPos) {
+    vec4 newClipPos = ApplyShadowDepthBias(shadowPos, cc_shadowWHPBInfo.w);
     vec3 clipPos = shadowPos.xyz / shadowPos.w * 0.5 + 0.5;
     if (clipPos.x < 0.0 || clipPos.x > 1.0 ||
         clipPos.y < 0.0 || clipPos.y > 1.0 ||
@@ -40,19 +53,8 @@
     return shadow;
   }
 
-  // Convert clipspace depthbias to worldspace depthbias - orthographic
-  float CCConvertClipspaceBiasToWorldspaceBias_Persp(float clipspaceDepthBias)
-  {
-    return cc_nearFarConstant.x + (cc_nearFarConstant.y / clipspaceDepthBias);
-  }
-
-  // Convert clipspace depthbias to worldspace depthbias - perspective
-  float CCConvertClipspaceBiasToWorldspaceBias_Ortho(float clipspaceDepthBias)
-  {
-    return cc_nearFarConstant.x * ((clipspaceDepthBias + 1.0) * 0.5) + cc_nearFarConstant.z;
-  }
-
   float CCGetShadowFactorSoft (vec4 shadowPos) {
+    vec4 newClipPos = ApplyShadowDepthBias(shadowPos, cc_shadowWHPBInfo.w);
     vec3 clipPos = shadowPos.xyz / shadowPos.w * 0.5 + 0.5;
     if (clipPos.x < 0.0 || clipPos.x > 1.0 ||
         clipPos.y < 0.0 || clipPos.y > 1.0 ||
@@ -60,9 +62,7 @@
 
     CC_HANDLE_NDC_SAMPLE_FLIP(clipPos.xy);
 
-    float depthBias = CCConvertClipspaceBiasToWorldspaceBias_Ortho(cc_shadowWHPBInfo.w);
-
-    float offsetDepth = clipPos.z - depthBias;
+    float offsetDepth = clipPos.z;
     vec2 oneTap = 1.0 / cc_shadowWHPBInfo.xy;
     vec2 clipPos_offset = clipPos.xy + oneTap;
     float block0, block1, block2, block3;
@@ -86,6 +86,7 @@
   }
 
   float CCGetShadowFactorSoft2X (vec4 shadowPos) {
+    vec4 newClipPos = ApplyShadowDepthBias(shadowPos, cc_shadowWHPBInfo.w);
     vec3 clipPos = shadowPos.xyz / shadowPos.w * 0.5 + 0.5;
     if (clipPos.x < 0.0 || clipPos.x > 1.0 ||
         clipPos.y < 0.0 || clipPos.y > 1.0 ||
@@ -93,9 +94,7 @@
     
     CC_HANDLE_NDC_SAMPLE_FLIP(clipPos.xy);
 
-    float depthBias = CCConvertClipspaceBiasToWorldspaceBias_Ortho(cc_shadowWHPBInfo.w);
-
-    float offsetDepth = clipPos.z - depthBias;
+    float offsetDepth = clipPos.z;
     vec2 mapSize = cc_shadowWHPBInfo.xy;
     vec2 oneTap = 1.0 / mapSize;
     float clipPos_offset_L = clipPos.x - oneTap.x;
@@ -150,12 +149,24 @@
   }
 
   float CCGetSpotLightShadowFactorHard (vec4 shadowPos, vec3 worldPos) {
-    vec3 clipPos = shadowPos.xyz / shadowPos.w * 0.5 + 0.5;
+#if 1
+    vec4 newClipPos = ApplyShadowDepthBias(shadowPos, cc_shadowWHPBInfo.w);
+    vec3 clipPos = newClipPos.xyz / newClipPos.w * 0.5 + 0.5;
+#else
+    float coeff_A = cc_nearFarConstant.x;
+    float coeff_B = cc_nearFarConstant.y;
+    float NDCz = shadowPos.z / shadowPos.w;
+    float ViewZ = coeff_B / (NDCz - coeff_A); //invproj
+    ViewZ += cc_shadowWHPBInfo.w;
+    float NDC_biased = coeff_B / ViewZ + coeff_A; //proj
+    shadowPos.xyw /= shadowPos.w; // => NDC
+    shadowPos.z = NDC_biased;
+    vec3 clipPos = shadowPos.xyz * 0.5 + 0.5;
+#endif
+
     if (clipPos.x < 0.0 || clipPos.x > 1.0 ||
         clipPos.y < 0.0 || clipPos.y > 1.0 ||
         clipPos.z <-1.0 || clipPos.z > 1.0) { return 0.0; }
-
-    float depthBias = CCConvertClipspaceBiasToWorldspaceBias_Persp(cc_shadowWHPBInfo.w);
 
     float shadow = 0.0;
     float closestDepth = 0.0;
@@ -172,18 +183,19 @@
     } else {
       closestDepth = texture(cc_spotLightingMap, clipPos.xy).x;
     }
-    shadow = step(closestDepth, depth - depthBias);
+    shadow = step(closestDepth, depth);
 
     return shadow;
   }
 
   float CCGetSpotLightShadowFactorSoft (vec4 shadowPos, vec3 worldPos) {
-    vec3 clipPos = shadowPos.xyz / shadowPos.w * 0.5 + 0.5;
+
+    vec4 newClipPos = ApplyShadowDepthBias(shadowPos, cc_shadowWHPBInfo.w);
+    vec3 clipPos = newClipPos.xyz / newClipPos.w * 0.5 + 0.5;
+
     if (clipPos.x < 0.0 || clipPos.x > 1.0 ||
         clipPos.y < 0.0 || clipPos.y > 1.0 ||
         clipPos.z <-1.0 || clipPos.z > 1.0) { return 0.0; }
-
-    float depthBias = CCConvertClipspaceBiasToWorldspaceBias_Persp(cc_shadowWHPBInfo.w);
 
     float offsetx = 1.0 / cc_shadowWHPBInfo.x;
     float offsety = 1.0 / cc_shadowWHPBInfo.y;
@@ -200,38 +212,38 @@
     // enbaled packing?
     if (cc_shadowLPNNInfo.y > 0.000001) {
       float closestDepth = unpackRGBAToDepth(texture(cc_spotLightingMap, vec2(clipPos.x - offsetx, clipPos.y - offsety)));
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
       closestDepth = unpackRGBAToDepth(texture(cc_spotLightingMap, vec2(clipPos.x - offsetx, clipPos.y + offsety)));
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
       closestDepth = unpackRGBAToDepth(texture(cc_spotLightingMap, vec2(clipPos.x, clipPos.y)));
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
       closestDepth = unpackRGBAToDepth(texture(cc_spotLightingMap, vec2(clipPos.x + offsetx, clipPos.y - offsety)));
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
       closestDepth = unpackRGBAToDepth(texture(cc_spotLightingMap, vec2(clipPos.x + offsetx, clipPos.y + offsety)));
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
     } else {
       float closestDepth = texture(cc_spotLightingMap, vec2(clipPos.x - offsetx, clipPos.y - offsety)).x;
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
       closestDepth = texture(cc_spotLightingMap, vec2(clipPos.x - offsetx, clipPos.y + offsety)).x;
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
       closestDepth = texture(cc_spotLightingMap, vec2(clipPos.x, clipPos.y)).x;
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
       closestDepth = texture(cc_spotLightingMap, vec2(clipPos.x + offsetx, clipPos.y - offsety)).x;
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
       closestDepth = texture(cc_spotLightingMap, vec2(clipPos.x + offsetx, clipPos.y + offsety)).x;
-      shadow += step(closestDepth, depth - depthBias);
+      shadow += step(closestDepth, depth);
     }
 
     return shadow / 5.0;
   }
 
   float CCGetSpotLightShadowFactorSoft2X (vec4 shadowPos, vec3 worldPos) {
-    vec3 clipPos = shadowPos.xyz / shadowPos.w * 0.5 + 0.5;
+    vec4 newClipPos = ApplyShadowDepthBias(shadowPos, cc_shadowWHPBInfo.w);
+    vec3 clipPos = newClipPos.xyz / newClipPos.w * 0.5 + 0.5;
+
     if (clipPos.x < 0.0 || clipPos.x > 1.0 ||
         clipPos.y < 0.0 || clipPos.y > 1.0 ||
         clipPos.z <-1.0 || clipPos.z > 1.0) { return 0.0; }
-
-    float depthBias = CCConvertClipspaceBiasToWorldspaceBias_Persp(cc_shadowWHPBInfo.w);
 
     float offsetx = 1.0 / cc_shadowWHPBInfo.x;
     float offsety = 1.0 / cc_shadowWHPBInfo.y;
@@ -248,14 +260,14 @@
       for (int i = -1; i <= 1; i++) {
         for (int j = -1; j <= 1; j++) {
           float closestDepth = unpackRGBAToDepth(texture(cc_spotLightingMap, clipPos.xy + vec2(i, j) * vec2(offsetx, offsety)));
-          shadow += step(closestDepth, depth - depthBias);
+          shadow += step(closestDepth, depth);
         }
       }
     } else {
       for (int i = -1; i <= 1; i++) {
         for (int j = -1; j <= 1; j++) {
           float closestDepth = texture(cc_spotLightingMap, clipPos.xy + vec2(i, j) * vec2(offsetx, offsety)).x;
-          shadow += step(closestDepth, depth - depthBias);
+          shadow += step(closestDepth, depth);
         }
       }
     }

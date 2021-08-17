@@ -111,6 +111,10 @@ legacyCC.AmbientInfo = AmbientInfo;
 export class SkyboxInfo {
     @type(TextureCube)
     protected _envmap: TextureCube | null = null;
+    @type(TextureCube)
+    protected _diffusemap: TextureCube | null = null;
+    @serializable
+    protected _applyDiffuseMap = false;
     @serializable
     protected _isRGBE = false;
     @serializable
@@ -163,6 +167,32 @@ export class SkyboxInfo {
     get envmap () {
         return this._envmap;
     }
+
+    /**
+     * @en Diffuse reflection convolution map
+     * @zh TODO
+     */
+
+     @editable
+     @type(TextureCube)
+     set diffusemap (val) {
+         this._diffusemap = val;
+     }
+     get diffusemap () {
+         return this._diffusemap;
+     }
+
+    /**
+     * @en Whether to use diffuse reflection convolution map. Enabled -> Will use map specified. Disabled -> Will revert to hemispheric lighting
+     * @zh TODO
+     */
+     @editable
+     set applyDiffuseMap (val) {
+         this._applyDiffuseMap = val;
+     }
+     get applyDiffuseMap () {
+         return this._applyDiffuseMap;
+     }
 
     /**
      * @en Whether enable RGBE data support in skybox shader

@@ -44,9 +44,10 @@ export function GenerateDiffuseReflectionMap(file : string, foo : TextureCube) :
 {
     console.log("Generating Diffuse Convolution Map...Start");
 
-    // TODO: Invoke CMFT generating diffuse relf. conv. map .......................................................
+    // TODO: Invoke CMFT generating diffuse.....
 
     console.log("Generating Diffuse Convolution Map...Done");
+
     return foo;
 }
 
@@ -91,7 +92,7 @@ export class AmbientInfo {
     get skyIllum () {
         return this._skyIllum;
     }
-
+    
     /**
      * @en Ground color
      * @zh 地面颜色
@@ -114,6 +115,7 @@ export class AmbientInfo {
 }
 legacyCC.AmbientInfo = AmbientInfo;
 
+
 /**
  * @en Skybox related information
  * @zh 天空盒相关信息
@@ -127,8 +129,6 @@ export class SkyboxInfo {
     @type(TextureCube)
     @readOnly
     protected _diffusemap: TextureCube | null = null;
-    @serializable
-    protected _isRGBE = false;
     @serializable
     protected _enabled = false;
     @serializable
@@ -212,25 +212,10 @@ export class SkyboxInfo {
             this._diffusemap = null;
             this._applyDiffuseMap = false;
         }
-
-
-
     }
+
     get envmap () {
         return this._envmap;
-    }
-
-    /**
-     * @en Whether enable RGBE data support in skybox shader
-     * @zh 是否需要开启 shader 内的 RGBE 数据支持？
-     */
-    @editable
-    set isRGBE (val) {
-        this._isRGBE = val;
-        if (this._resource) { this._resource.isRGBE = this._isRGBE; }
-    }
-    get isRGBE () {
-        return this._isRGBE;
     }
 
     public activate (resource: Skybox) {

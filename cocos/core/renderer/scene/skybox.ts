@@ -77,21 +77,11 @@ export class Skybox {
      * @zh 是否需要开启 shader 内的 RGBE 数据支持？
      */
     get isRGBE (): boolean {
-        return this._isRGBE;
-    }
-
-    set isRGBE (val: boolean) {
-        if (val) {
-            if (skybox_material) {
-                skybox_material.recompileShaders({ USE_RGBE_CUBEMAP: val });
-            }
-
-            if (this._model) {
-                this._model.setSubModelMaterial(0, skybox_material!);
-            }
+        if (this.envmap) {
+            return this.envmap.isRGBE;
+        } else {
+            return false;
         }
-        this._setIsRGBE(val);
-        this._updatePipeline();
     }
 
     /**
@@ -99,34 +89,59 @@ export class Skybox {
      * @zh 使用的立方体贴图
      */
     get envmap (): TextureCube | null {
-        return this._envmap;
-    }
-
-    set envmap (val: TextureCube | null) {
-        this._envmap = val || this._default;
-        if (this._envmap) {
-            (legacyCC.director.root as Root).pipeline.pipelineSceneData.ambient.albedoArray[3] = this._envmap.mipmapLevel;
-            this._updateGlobalBinding();
+        const isHDR = (legacyCC.director.root as Root).pipeline.pipelineSceneData.isHDR;
+        if (isHDR) {
+            return this._envmap_hdr;
+        } else {
+            return this._envmap_ldr;
         }
     }
 
-    protected _envmap: TextureCube | null = null;
+    set envmap (val: TextureCube | null) {
+        const isHDR = (legacyCC.director.root as Root).pipeline.pipelineSceneData.isHDR;
+        
+        if (isHDR) {
+            this._envmap_hdr = val || this._default;
+            if (this._envmap_hdr) {
+                (legacyCC.director.root as Root).pipeline.pipelineSceneData.ambient.albedoArray[3] = this._envmap_hdr.mipmapLevel;
+               this._updateGlobalBinding();
+            }
+        } else {
+            this._envmap_ldr = val || this._default;
+            if (this._envmap_ldr) {
+                (legacyCC.director.root as Root).pipeline.pipelineSceneData.ambient.albedoArray[3] = this._envmap_ldr.mipmapLevel;
+                this._updateGlobalBinding();
+            }   
+        }
+        
+        if (val) {
+            if (JSB) {
+               this._nativeObj!.isRGBE = val.isRGBE;
+            }
+        
+            if (skybox_material) {
+                skybox_material.recompileShaders({ USE_RGBE_CUBEMAP: val.isRGBE });
+            }
+        
+            if (this._model) {
+                this._model.setSubModelMaterial(0, skybox_material!);
+            }
+        }
+        
+        this._updatePipeline();
+    }
+
+    protected _envmap_ldr: TextureCube | null = null;
+    protected _envmap_hdr: TextureCube | null = null;
     protected _globalDSManager: GlobalDSManager | null = null;
     protected _model: Model | null = null;
     protected _default: TextureCube | null = null;
     protected _enabled = false;
     protected _useIBL = false;
-    protected _isRGBE = false;
     protected declare _nativeObj: NaitveSkybox | null;
 
     get native (): NaitveSkybox {
         return this._nativeObj!;
-    }
-
-    constructor () {
-        if (JSB) {
-            this._nativeObj = new NaitveSkybox();
-        }
     }
 
     private _setEnabled (val) {
@@ -143,18 +158,10 @@ export class Skybox {
         }
     }
 
-    private _setIsRGBE (val) {
-        this._isRGBE = val;
-        if (JSB) {
-            this._nativeObj!.isRGBE = val;
-        }
-    }
-
     public initialize (skyboxInfo: SkyboxInfo) {
         this._setEnabled(skyboxInfo.enabled);
         this._setUseIBL(skyboxInfo.useIBL);
-        this._setIsRGBE(skyboxInfo.isRGBE);
-        this._envmap = skyboxInfo.envmap;
+        this.envmap = skyboxInfo.envmap;
     }
 
     public activate () {
@@ -171,23 +178,26 @@ export class Skybox {
                 this._nativeObj!.model = this._model.native;
             }
         }
-        if (!this._envmap) {
-            this._envmap = this._default;
+        let isRGBE = this._default.isRGBE;
+        if (this.envmap) {
+            isRGBE = this.envmap.isRGBE;
         }
-        ambient.albedoArray[3] = this._envmap.mipmapLevel;
 
         if (!skybox_material) {
             const mat = new Material();
-            mat.initialize({ effectName: 'skybox', defines: { USE_RGBE_CUBEMAP: this.isRGBE } });
+            mat.initialize({ effectName: 'skybox', defines: { USE_RGBE_CUBEMAP: isRGBE } });
             skybox_material = new MaterialInstance({ parent: mat });
-        } else {
-            skybox_material.recompileShaders({ USE_RGBE_CUBEMAP: this.isRGBE });
         }
 
         if (this.enabled) {
             if (!skybox_mesh) { skybox_mesh = legacyCC.utils.createMesh(legacyCC.primitives.box({ width: 2, height: 2, length: 2 })) as Mesh; }
             this._model.initSubModel(0, skybox_mesh.renderingSubMeshes[0], skybox_material);
         }
+
+        if (!this.envmap) {
+            this.envmap = this._default;
+        }
+
         this._updateGlobalBinding();
         this._updatePipeline();
     }

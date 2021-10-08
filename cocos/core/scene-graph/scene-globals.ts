@@ -135,12 +135,9 @@ export class AmbientInfo {
     set skyColorValue (val: Vec4) {
         const isHDR = (legacyCC.director.root as Root).pipeline.pipelineSceneData.isHDR;
         const clampColor = (x: number) => Math.min(x * 255, 255);
-        let colorRef = isHDR ? this._skyColor : this._skyColorLDR;
-
-        colorRef = val;
 
         if (isHDR) {
-            this.normalizeHdrColor(colorRef);
+            this.normalizeHdrColor(val);
         }
 
         if (this._resource) { this._resource.skyColorValue = _v3.set(val.x, val.y, val.z); }
